@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Finding Sarah</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game variables
+        let playerX = 50;
+        let playerY = 300;
+        let playerWidth = 40;
+        let playerHeight = 60;
+        let isJumping = false;
+        let jumpStrength = 0;
+        const gravity = 0.6;
+        let score = 0;
+
+        let obstacles = [];
+        const obstacleWidth = 32;
+        const obstacleHeight = 32;
+
+        let gameWon = false;
+
+        // Cloud variables
+        let clouds = [];
+
+        function drawBackground() {
+            // Sky
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw clouds
+            clouds.forEach(cloud => drawCloud(cloud.x, cloud.y, cloud.size));
+
+            // Sand
+            ctx.fillStyle = '#F4A460';
+            ctx.fillRect(0, 300, canvas.width, 100);
+
+            // Title
+            ctx.fillStyle = 'white'; // Changed to white
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('Finding Sarah', 20, 50);
+        }
+
+        function drawCloud(x, y, size) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(x, y, size, Math.PI * 0.5, Math.PI * 1.5);
+            ctx.arc(x + size, y - size / 2, size * 0.6, Math.PI * 1, Math.PI * 2);
+            ctx.arc(x + size * 1.4, y, size * 0.8, Math.PI * 1.2, Math.PI * 0.3);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function createClouds() {
+            for (let i = 0; i < 3; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * 100 + 50,
+                    size: Math.random() * 30 + 20
+                });
+            }
+        }
+
+        function moveCloud() {
+            clouds.forEach(cloud => {
+                cloud.x -= 0.5;
+                if (cloud.x + cloud.size * 2 < 0) {
+                    cloud.x = canvas.width + cloud.size;
+                }
+            });
+        }
+
+        function drawPlayer() {
+            // Head
+            ctx.fillStyle = '#FFE4B5';
+            ctx.fillRect(playerX + 6, playerY, 16, 16);
+
+            // Hair
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(playerX + 6, playerY, 16, 4);
+
+            // Eyes
+            ctx.fillStyle = 'black';
+            ctx.fillRect(playerX + 10, playerY + 8, 4, 4);
+            ctx.fillRect(playerX + 18, playerY + 8, 4, 4);
+
+            // Body (tan suit)
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(playerX + 2, playerY + 16, 24, 24);
+
+            // Shirt
+            ctx.fillStyle = 'white';
+            ctx.fillRect(playerX + 10, playerY + 16, 8, 8);
+
+            // Tie
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(playerX + 12, playerY + 24, 4, 16);
+
+            // Arms
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(playerX - 2, playerY + 16, 4, 20);
+            ctx.fillRect(playerX + 26, playerY + 16, 4, 20);
+
+            // Hands
+            ctx.fillStyle = '#FFE4B5';
+            ctx.fillRect(playerX - 6, playerY + 36, 8, 4);
+            ctx.fillRect(playerX + 26, playerY + 36, 8, 4);
+
+            // Legs
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(playerX + 6, playerY + 40, 6, 12);
+            ctx.fillRect(playerX + 16, playerY + 40, 6, 12);
+
+            // Shoes
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(playerX + 4, playerY + 52, 8, 4);
+            ctx.fillRect(playerX + 16, playerY + 52, 8, 4);
+        }
+
+        function drawTurtle(x, y) {
+            const pixelSize = 2; // Smaller pixel size for higher resolution
+
+            // Define the turtle shape using a 2D array
+            const turtleShape = [
+                [0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0],
+                [0,0,0,0,1,1,1,2,2,2,2,1,1,0,0,0],
+                [0,0,0,1,1,2,2,2,2,2,2,2,1,1,0,0],
+                [0,0,1,1,2,2,2,2,2,2,2,2,2,1,1,0],
+                [0,1,1,2,2,2,2,2,2,2,2,2,2,2,1,0],
+                [0,1,2,2,2,2,2,2,2,2,2,2,2,2,1,0],
+                [1,1,2,2,2,2,2,3,3,2,2,2,2,2,1,1],
+                [1,2,2,2,2,2,3,3,3,3,2,2,2,2,2,1],
+                [1,2,2,2,2,3,3,3,3,3,3,2,2,2,2,1],
+                [1,2,2,2,2,3,3,3,3,3,3,2,2,2,2,1],
+                [1,1,2,2,2,2,3,3,3,3,2,2,2,2,1,1],
+                [0,1,2,2,2,2,2,3,3,2,2,2,2,2,1,0],
+                [0,1,1,2,2,2,2,2,2,2,2,2,2,2,1,0],
+                [0,0,1,1,2,2,2,2,2,2,2,2,2,1,1,0],
+                [0,0,0,1,1,2,2,2,2,2,2,2,1,1,0,0],
+                [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
+            ];
+
+            // Colors for different parts of the turtle
+            const colors = [
+                '',             // 0: transparent
+                '#1D6F42',      // 1: dark green (outline)
+                '#2ECC71',      // 2: light green (skin)
+                '#8B4513',      // 3: brown (shell pattern)
+            ];
+
+            // Draw the turtle pixel by pixel
+            for (let i = 0; i < turtleShape.length; i++) {
+                for (let j = 0; j < turtleShape[i].length; j++) {
+                    if (turtleShape[i][j] !== 0) {
+                        ctx.fillStyle = colors[turtleShape[i][j]];
+                        ctx.fillRect(x + j * pixelSize, y + i * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+
+            // Draw the eye
+            ctx.fillStyle = 'black';
+            ctx.fillRect(x + 10 * pixelSize, y + 4 * pixelSize, pixelSize, pixelSize);
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                drawTurtle(obstacle.x, obstacle.y);
+            });
+        }
+
+        function createObstacle() {
+            obstacles.push({
+                x: canvas.width,
+                y: canvas.height - obstacleHeight - 20
+            });
+        }
+
+        function moveObstacles() {
+            obstacles.forEach(obstacle => {
+                obstacle.x -= 3;
+            });
+            obstacles = obstacles.filter(obstacle => obstacle.x + obstacleWidth > 0);
+        }
+
+        function jump() {
+            if (!isJumping) {
+                isJumping = true;
+                jumpStrength = 15;
+            }
+        }
+
+        function checkCollision() {
+            return obstacles.some(obstacle =>
+                playerX < obstacle.x + obstacleWidth &&
+                playerX + playerWidth > obstacle.x &&
+                playerY + playerHeight > obstacle.y &&
+                playerY < obstacle.y + obstacleHeight
+            );
+        }
+
+        function drawSarah(x, y) {
+            // Wedding Dress
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x, y, 40, 60);
+
+            // Veil
+            ctx.fillStyle = '#FFFAFA';
+            ctx.fillRect(x + 5, y - 10, 30, 15);
+
+            // Head
+            ctx.fillStyle = '#FFE4B5';
+            ctx.fillRect(x + 10, y, 20, 20);
+
+            // Hair
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 10, y, 20, 5);
+
+            // Eyes
+            ctx.fillStyle = 'black';
+            ctx.fillRect(x + 15, y + 8, 4, 4);
+            ctx.fillRect(x + 25, y + 8, 4, 4);
+
+            // Mouth (Smile)
+            ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x + 20, y + 15, 5, 0, Math.PI);
+            ctx.stroke();
+
+            // Bouquet
+            ctx.fillStyle = '#FF69B4';
+            ctx.beginPath();
+            ctx.arc(x + 20, y + 50, 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+            moveCloud();
+
+            if (score >= 686 && !gameWon) {
+                gameWon = true;
+                obstacles = [];
+                drawSarah(canvas.width - 100, 300);
+                drawPlayer();
+
+                ctx.fillStyle = 'white'; // Text color set to white
+                ctx.font = 'bold 40px Arial';
+                ctx.fillText('You helped find the bride.', canvas.width / 2 - 220, 150);
+                ctx.font = '20px Arial';
+                ctx.fillText('Hope to see you at the wedding.', canvas.width / 2 - 170, 180);
+                ctx.fillText('Press Space to restart', canvas.width / 2 - 100, 220);
+                return;
+            }
+
+            if (isJumping) {
+                playerY -= jumpStrength;
+                jumpStrength -= gravity;
+                if (playerY >= 300) {
+                    playerY = 300;
+                    isJumping = false;
+                }
+            }
+
+            drawPlayer();
+            drawObstacles();
+            moveObstacles();
+
+            score++;
+            ctx.fillStyle = 'white'; // Score text color changed to white
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 90);
+
+            if (checkCollision()) {
+                alert(`Game Over! Your score: ${score}`);
+                resetGame();
+            }
+
+            // Reduced turtle spawn rate
+            if (Math.random() < 0.005) {
+                createObstacle();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetGame() {
+            playerY = 300;
+            isJumping = false;
+            jumpStrength = 0;
+            obstacles = [];
+            score = 0;
+            gameWon = false;
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                if (gameWon) {
+                    resetGame();
+                    gameLoop(); // Restart the game loop after resetting
+                } else {
+                    jump();
+                }
+            }
+        });
+
+        canvas.addEventListener('click', () => {
+            if (gameWon) {
+                resetGame();
+                gameLoop(); // Restart the game loop after resetting
+            } else {
+                jump();
+            }
+        });
+
+        createClouds();
+        gameLoop();
+    </script>
+</body>
+</html>
